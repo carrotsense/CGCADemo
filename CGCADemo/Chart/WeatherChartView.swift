@@ -10,8 +10,10 @@ import UIKit
 
 struct WeatherChartViewSettings {
     
-    let leftPadding:CGFloat = 50.0
-    let rightPadding:CGFloat = 50.0
+    let animationDurations: TimeInterval = 1.0
+    
+    let leftPadding:CGFloat = 30.0
+    let rightPadding:CGFloat = 40.0
     let bottomPadding:CGFloat = 30.0
     let topPadding:CGFloat = 20.0
     
@@ -23,7 +25,7 @@ struct WeatherChartViewSettings {
     let borderLineWidth:CGFloat = 1.0
     
     let textColor:UIColor = UIColor.black
-    let textSize:CGFloat = 12.0
+    let textSize:CGFloat = 10.0
     
     let tempCircleStrokeColor = UIColor.orange
     let tempCircleColor = UIColor.white
@@ -33,8 +35,11 @@ struct WeatherChartViewSettings {
     let tempLineColor:UIColor = UIColor.orange.withAlphaComponent(0.7)
     
     let precipitationLineColor:UIColor = UIColor.blue
-    let precipitationTopFillColor:UIColor = UIColor(hex: 0x7abcff).withAlphaComponent(0.9)
-    let precipitationBottomFillColor:UIColor = UIColor(hex: 0x437af9).withAlphaComponent(0.9)
+    let precipitationGradientColors = [
+        UIColor(hex: 0x7abcff).withAlphaComponent(0.9).cgColor,
+        UIColor(hex: 0x0359c9).withAlphaComponent(0.9).cgColor
+    ]
+    let precipitationGradientLocation:[NSNumber] = [ NSNumber(value:0.2), NSNumber(value:0.8) ]
     let precipitationLineWidth: CGFloat = 0.5
     
     static var defaultSettings:WeatherChartViewSettings {
@@ -82,6 +87,20 @@ class WeatherChartView: UIView {
         return layers
     }()
     
+    lazy private var precipitaionLabelLayers:[CATextLayer] = {
+        let prec = stride(from: minPrecipitation, to: maxPrecipitation + precipitationInterval, by: precipitationInterval)
+        var layers = [CATextLayer]()
+        for p in prec {
+            let layer = CATextLayer()
+            layer.fontSize = settings.textSize
+            layer.foregroundColor = settings.textColor.cgColor
+            layer.string = "\(Int(p))mm"
+            layer.contentsScale = UIScreen.main.scale
+            layers.append(layer)
+        }
+        return layers
+    }()
+    
     lazy private var monthLabelLayers:[CATextLayer] = {
         let months = stride(from: monthMin, to: monthMax, by: 1)
         var layers = [CATextLayer]()
@@ -118,11 +137,19 @@ class WeatherChartView: UIView {
     lazy private var precipitationBarLayers:[CAShapeLayer] = {
         return (Int(monthMin)..<Int(monthMax)).map { _ in
             let shapeLayer = CAShapeLayer()
-            shapeLayer.strokeColor = settings.precipitationLineColor.cgColor
-            shapeLayer.lineWidth = settings.precipitationLineWidth
-            shapeLayer.fillColor = settings.precipitationBottomFillColor.cgColor
+            shapeLayer.fillColor = UIColor.black.cgColor
             shapeLayer.contentsScale = UIScreen.main.scale
             return shapeLayer
+        }
+    }()
+    
+    lazy private var precipitationGradientLayers:[CAGradientLayer] = {
+        return (Int(monthMin)..<Int(monthMax)).map { _ in
+            let gradientLayer = CAGradientLayer()
+            gradientLayer.colors = settings.precipitationGradientColors
+            gradientLayer.locations = settings.precipitationGradientLocation
+            gradientLayer.contentsScale = UIScreen.main.scale
+            return gradientLayer
         }
     }()
     
@@ -135,7 +162,7 @@ class WeatherChartView: UIView {
     
     let minPrecipitation:CGFloat = 0
     let maxPrecipitation:CGFloat = 200
-    let precipitationInterval = 25
+    let precipitationInterval: CGFloat = 25
     
     private func newGridPath() -> CGPath {
         let path = CGMutablePath()
@@ -150,7 +177,6 @@ class WeatherChartView: UIView {
     
     private func newBorderPath() -> CGPath {
         let path = CGMutablePath()
-        let transform =
         path.move(to: CGPoint(x: monthMin, y: minTemp), transform: temperatureTransformMatrix)
         path.addLine(to: CGPoint(x: monthMin, y: maxTemp), transform: temperatureTransformMatrix)
         path.addLine(to: CGPoint(x: monthMax, y: maxTemp), transform: temperatureTransformMatrix)
@@ -258,11 +284,15 @@ class WeatherChartView: UIView {
         for l in tempLabelLayers {
             layer.addSublayer(l)
         }
+        for l in precipitaionLabelLayers {
+            layer.addSublayer(l)
+        }
         for l in monthLabelLayers {
             layer.addSublayer(l)
         }
-        for l in precipitationBarLayers {
+        for (i, l) in precipitationGradientLayers.enumerated() {
             layer.addSublayer(l)
+            l.mask = precipitationBarLayers[i]
         }
         layer.addSublayer(temperatureLineLayer)
         layer.addSublayer(temperatureCirclesLayer)
@@ -276,10 +306,12 @@ class WeatherChartView: UIView {
         gridLayer.frame = layer.bounds
         temperatureLineLayer.frame = layer.bounds
         temperatureLineLayer.frame = layer.bounds
+        for l in precipitationGradientLayers {
+            l.frame = bounds
+        }
         for l in precipitationBarLayers {
             l.frame = bounds
         }
-        
         updateGrid(animated: false)
         updateLabels()
         updateTemperatureCircles(animated: false)
@@ -315,7 +347,7 @@ extension WeatherChartView {
         let animation = CABasicAnimation(keyPath: "path")
         animation.fromValue = temperatureCirclesLayer.path
         animation.toValue = path
-        animation.duration = 1.0
+        animation.duration = settings.animationDurations
         animation.timingFunction = CAMediaTimingFunction(name: CAMediaTimingFunctionName.easeOut)
         animation.fillMode = CAMediaTimingFillMode.both
         animation.isRemovedOnCompletion = false
@@ -335,13 +367,13 @@ extension WeatherChartView {
         let animation = CABasicAnimation(keyPath: "path")
         animation.fromValue = temperatureLineLayer.path
         animation.toValue = path
-        animation.duration = 1.0
+        animation.duration = settings.animationDurations
         animation.timingFunction = CAMediaTimingFunction(name: CAMediaTimingFunctionName.easeOut)
         animation.fillMode = CAMediaTimingFillMode.both
         animation.isRemovedOnCompletion = false
 
         temperatureLineLayer.add(animation, forKey: animation.keyPath)
-        temperatureLineLayer.path = path        
+        temperatureLineLayer.path = path
     }
     
     func updatePrecipitationBars(animated: Bool) {
@@ -359,7 +391,7 @@ extension WeatherChartView {
             let animation = CABasicAnimation(keyPath: "path")
             animation.fromValue = l.path
             animation.toValue = path
-            animation.duration = 1.0
+            animation.duration = settings.animationDurations
             animation.timingFunction = CAMediaTimingFunction(name: CAMediaTimingFunctionName.easeOut)
             animation.fillMode = CAMediaTimingFillMode.both
             animation.isRemovedOnCompletion = false
@@ -378,7 +410,15 @@ extension WeatherChartView {
             let pointInDegree = CGPoint(x: 0, y: temp)
             let pointInPoints = pointInDegree.applying(temperatureTransformMatrix)
             let l = tempLabelLayers[i]
-            l.frame = CGRect(x: 10, y: pointInPoints.y - 10, width: 30, height: 20)
+            l.frame = CGRect(x: 0, y: pointInPoints.y - 7, width: settings.leftPadding, height: 20)
+        }
+        
+        let precipitations = stride(from: minPrecipitation, to: maxPrecipitation + precipitationInterval, by: precipitationInterval)
+        for (i,prec) in precipitations.enumerated() {
+            let pointInMM = CGPoint(x: 0, y: prec)
+            let pointInPoints = pointInMM.applying(precipitationTransform)
+            let l = precipitaionLabelLayers[i]
+            l.frame = CGRect(x: frame.width - settings.rightPadding + 5, y: pointInPoints.y - 7, width: settings.rightPadding, height: 20)
         }
         
         let months = stride(from: monthMin, to: monthMax, by: 1)

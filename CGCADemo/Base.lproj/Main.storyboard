@@ -59,10 +59,10 @@
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="52O-9F-tWH" customClass="WeatherChartView" customModule="CGCADemo" customModuleProvider="target">
-                                <rect key="frame" x="16" y="209" width="343" height="257.5"/>
+                                <rect key="frame" x="16" y="258.5" width="343" height="308.5"/>
                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                 <constraints>
-                                    <constraint firstAttribute="width" secondItem="52O-9F-tWH" secondAttribute="height" multiplier="4:3" id="bIa-40-Piu"/>
+                                    <constraint firstAttribute="width" secondItem="52O-9F-tWH" secondAttribute="height" multiplier="200:180" id="oYL-O6-g6U"/>
                                 </constraints>
                             </view>
                             <collectionView clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" dataMode="prototypes" translatesAutoresizingMaskIntoConstraints="NO" id="hrk-kv-Mbk">
@@ -115,9 +115,9 @@
                             <constraint firstItem="hrk-kv-Mbk" firstAttribute="leading" secondItem="wUA-p2-nGH" secondAttribute="leading" id="BjM-1s-ikT"/>
                             <constraint firstItem="hrk-kv-Mbk" firstAttribute="trailing" secondItem="wUA-p2-nGH" secondAttribute="trailing" id="J3W-oO-II5"/>
                             <constraint firstItem="wUA-p2-nGH" firstAttribute="trailing" secondItem="52O-9F-tWH" secondAttribute="trailing" constant="16" id="c8x-EU-WrQ"/>
-                            <constraint firstItem="52O-9F-tWH" firstAttribute="top" secondItem="hrk-kv-Mbk" secondAttribute="bottom" constant="29" id="c9j-Gl-Mt5"/>
                             <constraint firstItem="52O-9F-tWH" firstAttribute="leading" secondItem="wUA-p2-nGH" secondAttribute="leading" constant="16" id="gU0-Ne-EcY"/>
                             <constraint firstItem="hrk-kv-Mbk" firstAttribute="top" secondItem="wUA-p2-nGH" secondAttribute="top" constant="30" id="hkz-Pw-H5L"/>
+                            <constraint firstItem="wUA-p2-nGH" firstAttribute="bottom" secondItem="52O-9F-tWH" secondAttribute="bottom" constant="100" id="z6e-AM-zpK"/>
                         </constraints>
                         <viewLayoutGuide key="safeArea" id="wUA-p2-nGH"/>
                     </view>
