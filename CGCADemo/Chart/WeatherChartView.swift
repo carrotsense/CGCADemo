@@ -49,11 +49,11 @@ struct WeatherChartViewSettings {
 
 class WeatherChartView: UIView {
     
-    var temperatures:[CGFloat] = []
-    var precipitations:[CGFloat] = []
+    //
+    // MARK: - layers
+    //
     
-    // MARK: - chart grid
-    
+    // the horizontal dashed lines
     lazy private var gridLayer:CAShapeLayer = {
         let shapeLayer = CAShapeLayer()
         shapeLayer.strokeColor = settings.gridLineColor.cgColor
@@ -64,6 +64,7 @@ class WeatherChartView: UIView {
         return shapeLayer
     }()
     
+    // the solid border
     lazy private var borderLayer:CAShapeLayer = {
         let shapeLayer = CAShapeLayer()
         shapeLayer.strokeColor = settings.borderLineColor.cgColor
@@ -73,6 +74,7 @@ class WeatherChartView: UIView {
         return shapeLayer
     }()
     
+    // temperature labels on the left
     lazy private var tempLabelLayers:[CATextLayer] = {
         let temps = stride(from: minTemp, to: maxTemp + tempInterval, by: tempInterval)
         var layers = [CATextLayer]()
@@ -87,6 +89,7 @@ class WeatherChartView: UIView {
         return layers
     }()
     
+    // precipitation labels on the right
     lazy private var precipitaionLabelLayers:[CATextLayer] = {
         let prec = stride(from: minPrecipitation, to: maxPrecipitation + precipitationInterval, by: precipitationInterval)
         var layers = [CATextLayer]()
@@ -101,6 +104,7 @@ class WeatherChartView: UIView {
         return layers
     }()
     
+    // month labels at the bottom
     lazy private var monthLabelLayers:[CATextLayer] = {
         let months = stride(from: monthMin, to: monthMax, by: 1)
         var layers = [CATextLayer]()
@@ -116,6 +120,7 @@ class WeatherChartView: UIView {
         return layers
     }()
     
+    // the temperatre cirles, one per month
     lazy private var temperatureCirclesLayer:CAShapeLayer = {
         let shapeLayer = CAShapeLayer()
         shapeLayer.strokeColor = settings.tempCircleStrokeColor.cgColor
@@ -125,6 +130,7 @@ class WeatherChartView: UIView {
         return shapeLayer
     }()
     
+    // the temperatre line, connects the temperatre cirles
     lazy private var temperatureLineLayer:CAShapeLayer = {
         let shapeLayer = CAShapeLayer()
         shapeLayer.strokeColor = settings.tempLineColor.cgColor
@@ -134,6 +140,7 @@ class WeatherChartView: UIView {
         return shapeLayer
     }()
     
+    // precipitation bars clipping mask, one layer per bar/month
     lazy private var precipitationBarLayers:[CAShapeLayer] = {
         return (Int(monthMin)..<Int(monthMax)).map { _ in
             let shapeLayer = CAShapeLayer()
@@ -143,6 +150,7 @@ class WeatherChartView: UIView {
         }
     }()
     
+    // precipitation bars gradient layer, one layer per bar/month
     lazy private var precipitationGradientLayers:[CAGradientLayer] = {
         return (Int(monthMin)..<Int(monthMax)).map { _ in
             let gradientLayer = CAGradientLayer()
@@ -153,16 +161,132 @@ class WeatherChartView: UIView {
         }
     }()
     
-    // in the real world those would be computed after parsing input data.
-    let minTemp:CGFloat = -5
-    let maxTemp:CGFloat = 35
-    let tempInterval:CGFloat = 5
-    let monthMin:CGFloat = 0
-    let monthMax:CGFloat = 12
+    //
+    // MARK: - View lifecycle
+    //
     
-    let minPrecipitation:CGFloat = 0
-    let maxPrecipitation:CGFloat = 200
-    let precipitationInterval: CGFloat = 25
+    required init?(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder)
+        
+        commonInit()
+    }
+    
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        
+        commonInit()
+    }
+    
+    private func commonInit() {
+        // add all layers to the chart, in that order.
+        layer.addSublayer(borderLayer)
+        layer.addSublayer(gridLayer)
+        for l in tempLabelLayers {
+            layer.addSublayer(l)
+        }
+        for l in precipitaionLabelLayers {
+            layer.addSublayer(l)
+        }
+        for l in monthLabelLayers {
+            layer.addSublayer(l)
+        }
+        for (i, l) in precipitationGradientLayers.enumerated() {
+            layer.addSublayer(l)
+            l.mask = precipitationBarLayers[i]
+        }
+        layer.addSublayer(temperatureLineLayer)
+        layer.addSublayer(temperatureCirclesLayer)
+    }
+    
+    //
+    // all layers, except label layers must be full size
+    //
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        
+        // resize all layers to match the chart new size
+        borderLayer.frame = layer.bounds
+        gridLayer.frame = layer.bounds
+        temperatureLineLayer.frame = layer.bounds
+        temperatureLineLayer.frame = layer.bounds
+        for l in precipitationGradientLayers {
+            l.frame = bounds
+        }
+        for l in precipitationBarLayers {
+            l.frame = bounds
+        }
+        updateGrid(animated: false)
+        updateLabels()
+        updateTemperatureCircles(animated: false)
+        updateTemperatureLine(animated: false)
+        updatePrecipitationBars(animated: false)
+    }
+    
+    //
+    // MARK: - data, scales, etc...
+    // in the real world those would be computed after parsing input data.
+    //
+    private var temperatures:[CGFloat] = []
+    private var precipitations:[CGFloat] = []
+    private let minTemp:CGFloat = -5
+    private let maxTemp:CGFloat = 35
+    private let tempInterval:CGFloat = 5
+    private let monthMin:CGFloat = 0
+    private let monthMax:CGFloat = 12
+    
+    private let minPrecipitation:CGFloat = 0
+    private let maxPrecipitation:CGFloat = 200
+    private let precipitationInterval: CGFloat = 25
+    
+    private var settings = WeatherChartViewSettings.defaultSettings
+
+    // conversion C degree -> Point
+    private var temperatureTransformMatrix:CGAffineTransform {
+        let pointsPerMonth = (frame.width - settings.leftPadding - settings.rightPadding) / (monthMax - monthMin)
+        let pointsPerDegree = (frame.height - settings.bottomPadding - settings.topPadding) / (maxTemp - minTemp)
+        return CGAffineTransform(
+            a: pointsPerMonth,
+            b: 0,
+            c: 0,
+            d: -pointsPerDegree,
+            tx: settings.leftPadding,
+            ty: frame.height + minTemp * pointsPerDegree - settings.bottomPadding)
+    }
+    
+    // conversion precipitation mm -> Point
+    private var precipitationTransform:CGAffineTransform {
+        let pointsPerMonth = (frame.width - settings.leftPadding - settings.rightPadding) / (monthMax - monthMin)
+        let pointsPerMM = (frame.height - settings.bottomPadding - settings.topPadding) / (maxPrecipitation - minPrecipitation)
+        return CGAffineTransform(
+            a: pointsPerMonth,
+            b: 0,
+            c: 0,
+            d: -pointsPerMM,
+            tx: settings.leftPadding,
+            ty: frame.height + minPrecipitation * pointsPerMM - settings.bottomPadding)
+    }
+    
+}
+
+//
+// MARK: - our interface with the outside world.
+//
+extension WeatherChartView {
+    
+    public func updateChart(for city:City, animated:Bool) {
+        self.temperatures = city.monthlyAvgTemperatureC
+        self.precipitations = city.monthlyAvgPrecipitationmm
+        updateGrid(animated: animated)
+        updateTemperatureCircles(animated: animated)
+        updateTemperatureLine(animated: animated)
+        updatePrecipitationBars(animated: animated)
+    }
+}
+
+//
+// MARK: - path generation
+//
+extension WeatherChartView {
     
     private func newGridPath() -> CGPath {
         let path = CGMutablePath()
@@ -193,7 +317,7 @@ class WeatherChartView: UIView {
         }
         
         for (i,t) in temperatures.enumerated() {
-            let rect = CGRect(x: CGFloat(i) + 0.5, y: t, width: 0, height: 0)
+            let rect = CGRect(x: CGFloat(i) + 0.5, y: t, width: 0, height: 0) // the circle is located in the middle of the month hence +0.5
             let convertedRect = rect.applying(temperatureTransformMatrix)
             
             let r = settings.tempCircleDiameter / 2.0
@@ -206,7 +330,7 @@ class WeatherChartView: UIView {
     
     private func newTemperatureLinePath() -> CGPath {
         let path = CGMutablePath()
-
+        
         if temperatures.isEmpty {
             return path
         }
@@ -239,104 +363,20 @@ class WeatherChartView: UIView {
             return path
         }
     }
-    
-    private var settings = WeatherChartViewSettings.defaultSettings
-
-    var temperatureTransformMatrix:CGAffineTransform {
-        let pointsPerMonth = (frame.width - settings.leftPadding - settings.rightPadding) / (monthMax - monthMin)
-        let pointsPerDegree = (frame.height - settings.bottomPadding - settings.topPadding) / (maxTemp - minTemp)
-        return CGAffineTransform(
-            a: pointsPerMonth,
-            b: 0,
-            c: 0,
-            d: -pointsPerDegree,
-            tx: settings.leftPadding,
-            ty: frame.height + minTemp * pointsPerDegree - settings.bottomPadding)
-    }
-    
-    var precipitationTransform:CGAffineTransform {
-        let pointsPerMonth = (frame.width - settings.leftPadding - settings.rightPadding) / (monthMax - monthMin)
-        let pointsPerMM = (frame.height - settings.bottomPadding - settings.topPadding) / (maxPrecipitation - minPrecipitation)
-        return CGAffineTransform(
-            a: pointsPerMonth,
-            b: 0,
-            c: 0,
-            d: -pointsPerMM,
-            tx: settings.leftPadding,
-            ty: frame.height + minPrecipitation * pointsPerMM - settings.bottomPadding)
-    }
-    
-    required init?(coder aDecoder: NSCoder) {
-        super.init(coder: aDecoder)
-        
-        commonInit()
-    }
-    
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        
-        commonInit()
-    }
-    
-    func commonInit() {
-        layer.addSublayer(borderLayer)
-        layer.addSublayer(gridLayer)
-        for l in tempLabelLayers {
-            layer.addSublayer(l)
-        }
-        for l in precipitaionLabelLayers {
-            layer.addSublayer(l)
-        }
-        for l in monthLabelLayers {
-            layer.addSublayer(l)
-        }
-        for (i, l) in precipitationGradientLayers.enumerated() {
-            layer.addSublayer(l)
-            l.mask = precipitationBarLayers[i]
-        }
-        layer.addSublayer(temperatureLineLayer)
-        layer.addSublayer(temperatureCirclesLayer)
-    }
-    
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        
-        // resize all layers to match the chart new size
-        borderLayer.frame = layer.bounds
-        gridLayer.frame = layer.bounds
-        temperatureLineLayer.frame = layer.bounds
-        temperatureLineLayer.frame = layer.bounds
-        for l in precipitationGradientLayers {
-            l.frame = bounds
-        }
-        for l in precipitationBarLayers {
-            l.frame = bounds
-        }
-        updateGrid(animated: false)
-        updateLabels()
-        updateTemperatureCircles(animated: false)
-        updateTemperatureLine(animated: false)
-        updatePrecipitationBars(animated: false)
-    }
 }
 
+
+//
+// MARK: - animations
+//
 extension WeatherChartView {
     
-    func updateChart(for city:City, animated:Bool) {
-        self.temperatures = city.monthlyAvgTemperatureC
-        self.precipitations = city.monthlyAvgPrecipitationmm
-        updateGrid(animated: animated)
-        updateTemperatureCircles(animated: animated)
-        updateTemperatureLine(animated: animated)
-        updatePrecipitationBars(animated: animated)
-    }
-    
-    func updateGrid(animated: Bool) {
+    private func updateGrid(animated: Bool) {
         borderLayer.path = newBorderPath()
         gridLayer.path = newGridPath()
     }
     
-    func updateTemperatureCircles(animated: Bool) {
+    private func updateTemperatureCircles(animated: Bool) {
         let path = newTemperatureCirclesPath()
         
         if temperatureCirclesLayer.path == nil || !animated {
@@ -356,7 +396,7 @@ extension WeatherChartView {
         temperatureCirclesLayer.path = path
     }
     
-    func updateTemperatureLine(animated: Bool) {
+    private func updateTemperatureLine(animated: Bool) {
         let path = newTemperatureLinePath()
         
         if temperatureLineLayer.path == nil || !animated {
@@ -376,7 +416,7 @@ extension WeatherChartView {
         temperatureLineLayer.path = path
     }
     
-    func updatePrecipitationBars(animated: Bool) {
+    private func updatePrecipitationBars(animated: Bool) {
         let paths = newPrecipitationPaths()
         
         if paths.isEmpty { return }
@@ -402,7 +442,11 @@ extension WeatherChartView {
         
     }
     
-    func updateLabels() {
+    //
+    // label layers are different, they are not using the full size of the chart.
+    // position each layer frame where it should be.
+    //
+    private func updateLabels() {
         
         let temps = stride(from: minTemp, to: maxTemp + tempInterval, by: tempInterval)
         
