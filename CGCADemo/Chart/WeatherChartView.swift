@@ -274,8 +274,8 @@ class WeatherChartView: UIView {
 extension WeatherChartView {
     
     public func updateChart(for city:City, animated:Bool) {
-        self.temperatures = city.monthlyAvgTemperatureC
-        self.precipitations = city.monthlyAvgPrecipitationmm
+        temperatures = city.monthlyAvgTemperatureC
+        precipitations = city.monthlyAvgPrecipitationmm
         updateGrid(animated: animated)
         updateTemperatureCircles(animated: animated)
         updateTemperatureLine(animated: animated)
